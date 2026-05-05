@@ -1,0 +1,8 @@
+apache-airflow==2.9.3
+clickhouse-driver
+psycopg2-binary
+airflow-clickhouse-plugin
+apache-airflow-providers-amazon
+apache-airflow-providers-apache-spark
+pandas
+pyarrow

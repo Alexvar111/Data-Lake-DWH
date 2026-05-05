@@ -1,0 +1,191 @@
+x-airflow-common: &airflow-common
+  build: .
+  environment:
+    - PIP_DEFAULT_TIMEOUT=300
+    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    - AIRFLOW__API__AUTH_BACKEND=airflow.api.auth.backend.basic_auth
+    - AIRFLOW__WEBSERVER__SECRET_KEY=secure_key
+    - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}
+    - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
+    - AIRFLOW_CONN_POSTGRES_SOURCE_CONN=postgresql://${POSTGRES_SOURCE_USER}:${POSTGRES_SOURCE_PASSWORD}@postgres-source:5432/${POSTGRES_SOURCE_DB}
+    - AIRFLOW_CONN_POSTGRES_DWH_CONN=postgresql://${POSTGRES_DWH_USER}:${POSTGRES_DWH_PASSWORD}@postgres-dwh:5432/${POSTGRES_DWH_DB}
+    - AIRFLOW_CONN_MINIO_S3_CONN=aws://${MINIO_ROOT_USER}:${MINIO_ROOT_PASSWORD}@?host=http%3A%2F%2Fminio%3A9000
+    - AIRFLOW_CONN_CLICKHOUSE_CONN=clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@clickhouse:9000/${CLICKHOUSE_DB}
+    - AIRFLOW_CONN_SPARK_DEFAULT=spark://@spark%3A%2F%2Fspark-master:7077
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./plugins:/opt/airflow/plugins
+    - ./logs:/opt/airflow/logs
+    - ./spark_jobs:/opt/spark_jobs
+  depends_on:
+    postgres-airflow:
+      condition: service_healthy
+
+services:
+  # --- 1. Системная база Airflow ---
+  postgres-airflow:
+    image: postgres:15
+    container_name: lakehouse_airflow_db
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+
+  # --- 2. Источник (RDBMS со справочниками) ---
+  postgres-source:
+    image: postgres:15
+    container_name: lakehouse_source_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_SOURCE_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_SOURCE_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_SOURCE_DB}
+    volumes:
+      - postgres_source_data:/var/lib/postgresql/data
+      - ./data/source_init:/docker-entrypoint-initdb.d # Автозапуск init_refs.sql
+    ports:
+      - "5434:5432" # Отдельный порт наружу
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_SOURCE_USER}"]
+      interval: 10s
+      retries: 5
+
+  # --- 3. DWH (Ядро хранилища) ---
+  postgres-dwh:
+    image: postgres:15
+    container_name: lakehouse_dwh_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_DWH_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_DWH_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DWH_DB}
+    volumes:
+      - postgres_dwh_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432" # Отдельный порт наружу
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_DWH_USER}"]
+      interval: 10s
+      retries: 5
+
+  # --- 4. ClickHouse ---
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: lakehouse_clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
+      interval: 10s
+      retries: 5
+
+  # --- 5. MinIO (Бронза и Буфер) ---
+  minio:
+    image: minio/minio:latest
+    container_name: lakehouse_s3_minio
+    ports:
+      - "9002:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: lakehouse_s3_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb myminio/moex-bronze || true;
+      /usr/bin/mc mb myminio/moex-export || true;
+      /usr/bin/mc anonymous set public myminio/moex-bronze || true;
+      /usr/bin/mc anonymous set public myminio/moex-export || true;
+      exit 0;
+      "
+
+  # --- 6. Spark Кластер ---
+  spark-master:
+    image: bitnamilegacy/spark:3.5.1
+    container_name: lakehouse_spark_master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "8082:8080"
+      - "7077:7077"
+    volumes:
+      - ./spark_jobs:/opt/spark_jobs
+
+  spark-worker:
+    image: bitnamilegacy/spark:3.5.1
+    container_name: lakehouse_spark_worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+    depends_on:
+      - spark-master
+    volumes:
+      - ./spark_jobs:/opt/spark_jobs
+
+  # --- 7. Airflow Ядро ---
+  airflow-init:
+    <<: *airflow-common
+    container_name: lakehouse_airflow_init
+    entrypoint: /bin/bash
+    command: -c "airflow db migrate && airflow users create --username ${_AIRFLOW_WWW_USER_USERNAME} --firstname Admin --lastname User --role Admin --email ${_AIRFLOW_WWW_USER_EMAIL} --password ${_AIRFLOW_WWW_USER_PASSWORD}"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: lakehouse_airflow_webserver
+    restart: always
+    ports:
+      - "8080:8080"
+    command: webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: lakehouse_airflow_scheduler
+    restart: always
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_airflow_data: 
+  postgres_source_data:
+  postgres_dwh_data: 
+  clickhouse_data:
+  minio_data:

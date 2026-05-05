@@ -1,0 +1,28 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+
+# --- Airflow ---
+logs/
+*.log
+airflow.db
+airflow.cfg
+webserver_config.py
+
+# --- Docker Volumes (Самое важное!) ---
+postgres_airflow_data/
+postgres_source_data/
+postgres_dwh_data/
+clickhouse_data/
+minio_data/
+
+# --- IDE & OS ---
+.idea/
+.vscode/
+.DS_Store
+
+# --- Secrets ---
+.env
