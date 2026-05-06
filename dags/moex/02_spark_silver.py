@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.models import Connection # <- НОВЫЙ ИМПОРТ
+from airflow.models import Connection
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from moex.config.config import TICKERS
@@ -30,7 +30,6 @@ with DAG(
     template_searchpath=[os.path.join(DAGS_FOLDER, 'moex', 'sql')]
 ) as dag:
 
-    # P.S. Я раскомментировал clear_staging, он нам нужен для идемпотентности!
     clear_staging = SQLExecuteQueryOperator(
         task_id='clear_staging_for_date',
         conn_id='postgres_dwh_conn',
@@ -44,7 +43,6 @@ with DAG(
         application_args=[
             '{{ ds }}',
             ticker_list,
-            # Передаем секреты прямо в Spark-джобу
             dwh_conn.login,
             dwh_conn.password,
             s3_conn.login,

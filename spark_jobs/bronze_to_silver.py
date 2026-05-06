@@ -3,7 +3,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, to_date, explode, min, max, sum, first, last, lit
 
 
-# 1. Функция создания сессии теперь принимает логин и пароль от S3
+# 1. Функция создания сессии
 def get_spark_session(s3_user, s3_pwd):
     return SparkSession.builder \
         .appName("Moex_Bronze_to_Silver") \
@@ -15,7 +15,7 @@ def get_spark_session(s3_user, s3_pwd):
         .getOrCreate()
 
 
-# 2. Передаем креды от Postgres аргументом db_properties
+
 def process_candles(spark, target_date, tickers, db_properties):
     jdbc_url = "jdbc:postgresql://postgres-dwh:5432/dwh_db"
 
@@ -61,7 +61,7 @@ def process_candles(spark, target_date, tickers, db_properties):
                 url=jdbc_url,
                 table="staging.stg_candles_raw",
                 mode="append",
-                properties=db_properties  # <- Используем переданные креды
+                properties=db_properties
             )
             print(f"Успешно загружено для {ticker}")
 
@@ -86,20 +86,20 @@ def process_emitents(spark, target_date, db_properties):
             url=jdbc_url,
             table="staging.stg_emitents_raw",
             mode="overwrite",
-            properties=db_properties  # <- Используем переданные креды
+            properties=db_properties
         )
     except Exception as e:
         print(f"Ошибка справочников: {e}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 7:  # <- Теперь ждем 7 аргументов
+    if len(sys.argv) < 7:
         sys.exit(1)
 
     target_date = sys.argv[1]
     tickers = sys.argv[2].split(",")
 
-    # 3. Ловим секреты из аргументов
+    
     pg_user = sys.argv[3]
     pg_pwd = sys.argv[4]
     s3_user = sys.argv[5]

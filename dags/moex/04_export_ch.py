@@ -20,7 +20,6 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=['moex', 'export', 'clickhouse'],
-    # Указываем Airflow, где искать SQL-файлы
     template_searchpath=[os.path.join(DAGS_FOLDER, 'moex', 'sql')]
 ) as dag:
 

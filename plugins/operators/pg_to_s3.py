@@ -32,7 +32,7 @@ class PostgresToS3Operator(BaseOperator):
         pg_hook = PostgresHook(postgres_conn_id=self.pg_conn_id)
         s3_hook = S3Hook(aws_conn_id=self.aws_conn_id)
 
-        # Выгружаем данные сразу в Pandas DataFrame
+        # Выгружаем данные в Pandas DataFrame
         df = pg_hook.get_pandas_df(self.sql_query)
         if df.empty:
             self.log.warning(f"Запрос не вернул данных! Файл создаваться не будет.")

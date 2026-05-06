@@ -9,7 +9,6 @@ class MoexApiToS3Operator(BaseOperator):
     Кастомный оператор для выгрузки сырых данных из API MOEX и загрузки в S3 (MinIO).
     """
 
-    # Позволяет Airflow подставлять даты из контекста DAG-a (Jinja шаблоны)
     template_fields = ('api_start_date', 'api_end_date', 's3_key')
 
     def __init__(
@@ -44,7 +43,6 @@ class MoexApiToS3Operator(BaseOperator):
         }
         headers = {"User-Agent": "Mozilla/5.0 (Lakehouse Pipeline)"}
 
-        # Делаем запрос
         response = requests.get(url, params=params, headers=headers, timeout=30)
         response.raise_for_status()
         raw_data = response.json()
@@ -68,7 +66,7 @@ class MoexApiToS3Operator(BaseOperator):
             string_data=json_string,
             key=self.s3_key,
             bucket_name=self.s3_bucket,
-            replace=True  # Идемпотентность: если перезапускаем таску, файл перезапишется
+            replace=True
         )
 
         self.log.info(f"Файл успешно сохранен в S3 по пути: s3://{self.s3_bucket}/{self.s3_key}")

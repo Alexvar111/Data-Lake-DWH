@@ -50,5 +50,4 @@ with DAG(
         sql='dm/build_dm_candles.sql'
     )
 
-    # Выстраиваем цепочку: Сначала факты -> Потом справочник -> Потом сборка витрины
     load_ods_candles >> load_dds_emitents >> build_dm_candles
