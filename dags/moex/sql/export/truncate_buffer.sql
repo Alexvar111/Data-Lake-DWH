@@ -1,0 +1,1 @@
+TRUNCATE TABLE analytics.dm_stock_analytics_buffer;

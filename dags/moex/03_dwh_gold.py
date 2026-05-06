@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator, SQLCheckOperator
 
 default_args = {
     'owner': 'data_engineer',
@@ -21,19 +21,29 @@ with DAG(
         tags=['moex', 'gold', 'ods', 'dds', 'dm'],
         template_searchpath=[os.path.join(DAGS_FOLDER, 'moex', 'sql')]
 ) as dag:
+
+    # Загружаем сырые факты в ODS
     load_ods_candles = SQLExecuteQueryOperator(
         task_id='load_ods_candles',
         conn_id='postgres_dwh_conn',
         sql='ods/load_ods_candles.sql'
     )
+    #Data Quality Check
+    # Запрос ищет "плохие" строки. Если их количество равно 0, проверка пройдена (True).
+    dq_check_ods = SQLCheckOperator(
+        task_id='dq_check_candle_logic',
+        conn_id='postgres_dwh_conn',
+        sql='dq/check_ods_candles.sql'
+    )
 
+    # Загружаем справочники (SCD2)
     load_dds_emitents = SQLExecuteQueryOperator(
         task_id='load_dds_emitents',
         conn_id='postgres_dwh_conn',
         sql='dds/load_dds_emitents_scd2.sql'
     )
 
-    # НОВАЯ ТАСКА: Сборка витрины
+    # Сборка витрины
     build_dm_candles = SQLExecuteQueryOperator(
         task_id='build_dm_candles',
         conn_id='postgres_dwh_conn',

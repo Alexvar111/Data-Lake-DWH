@@ -2,6 +2,7 @@ import tempfile
 from airflow.models.baseoperator import BaseOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.exceptions import AirflowSkipException
 
 class PostgresToS3Operator(BaseOperator):
     """
@@ -33,6 +34,10 @@ class PostgresToS3Operator(BaseOperator):
 
         # Выгружаем данные сразу в Pandas DataFrame
         df = pg_hook.get_pandas_df(self.sql_query)
+        if df.empty:
+            self.log.warning(f"Запрос не вернул данных! Файл создаваться не будет.")
+            raise AirflowSkipException("Нет данных для выгрузки. Пропускаем таску.")
+
         self.log.info(f"Получено {len(df)} строк. Пишем во временный Parquet...")
 
         # Создаем временный файл Parquet
