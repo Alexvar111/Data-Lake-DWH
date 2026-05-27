@@ -40,8 +40,12 @@ class S3ToClickhouseOperator(BaseOperator):
         # Извлекаем endpoint MinIO из connection.
         # Если schema не задана, используем http по умолчанию.
         endpoint_host = aws_conn.host if aws_conn.host else "minio:9000"
-        endpoint_schema = aws_conn.schema if aws_conn.schema else "http"
-        endpoint = f"{endpoint_schema}://{endpoint_host}"
+        
+        if endpoint_host.startswith("http://") or endpoint_host.startswith("https://"):
+            endpoint = endpoint_host
+        else:
+            endpoint_schema = aws_conn.schema if aws_conn.schema else "http"
+            endpoint = f"{endpoint_schema}://{endpoint_host}"
         s3_url = f"{endpoint}/{self.s3_bucket}/{self.s3_key}"
         
         # Формируем запрос INSERT INTO ... SELECT * FROM s3(...)

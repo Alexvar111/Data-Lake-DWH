@@ -34,6 +34,7 @@ class GenericApiToS3Operator(BaseOperator):
             retryable_status_codes: tuple = (429, 500, 502, 503, 504),
             *args, **kwargs
     ):
+        # Функция, которая определяет, как достать массив данных из ответа и как получить параметры следующей страницы
         super().__init__(*args, **kwargs)
         self.endpoint = endpoint
         self.s3_bucket = s3_bucket
@@ -41,7 +42,6 @@ class GenericApiToS3Operator(BaseOperator):
         self.aws_conn_id = aws_conn_id
         self.req_params = req_params or {}
         self.headers = headers or {}
-        # Функция, которая определяет, как достать массив данных из ответа и как получить параметры следующей страницы
         self.pagination_function = pagination_function
         self.request_timeout = request_timeout
         self.max_request_retries = max_request_retries
@@ -170,5 +170,5 @@ class GenericApiToS3Operator(BaseOperator):
             self._upload_to_s3(tmp_file_path)
 
         finally:
-            # 4. Убираем за собой
+            # 4. Удаляем файл 
             self._cleanup(tmp_file_path)

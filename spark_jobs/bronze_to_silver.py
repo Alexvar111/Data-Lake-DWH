@@ -161,7 +161,7 @@ if __name__ == "__main__":
     s3_user = os.environ['SPARK_S3_USER']
     s3_pwd  = os.environ['SPARK_S3_PASSWORD']
 
-    # Обязательно добавляем параметры батчинга, иначе Spark будет писать в Postgres по одной строке!
+    # Добавляем параметры батчинга, иначе Spark будет писать в Postgres по одной строке
     db_properties = {
         "user": pg_user, 
         "password": pg_pwd, 

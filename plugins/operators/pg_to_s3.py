@@ -23,7 +23,7 @@ class PostgresToS3Operator(BaseOperator):
             s3_key: str,
             pg_conn_id: str = 'postgres_source_conn',
             aws_conn_id: str = 'minio_s3_conn',
-            chunk_size: int = 50000,  # <-- Добавили размер чанка
+            chunk_size: int = 50000,
             *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -78,7 +78,7 @@ class PostgresToS3Operator(BaseOperator):
             filename=tmp_file_path,
             key=self.s3_key,
             bucket_name=self.s3_bucket,
-            replace=True  # Перезаписываем файл, если он уже существует (поддерживаем идемпотентность)
+            replace=True  # Перезаписываем файл, если он уже существует (идемпотентность)
         )
         self.log.info(f"Успешно загружено в s3://{self.s3_bucket}/{self.s3_key}")
 
