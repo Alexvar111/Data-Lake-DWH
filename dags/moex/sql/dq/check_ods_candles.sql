@@ -1,6 +1,6 @@
 SELECT COUNT(*) = 0 
 FROM ods.candles 
-WHERE trade_date = '{{ ds }}'
+WHERE trade_date = '{{ macros.ds_add(ds, -1) }}'
   AND (
       high_price < low_price 
       OR volume < 0 

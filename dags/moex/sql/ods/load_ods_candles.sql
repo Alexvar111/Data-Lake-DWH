@@ -10,7 +10,7 @@ SELECT
     low_price, 
     volume
 FROM staging.stg_candles_raw
-WHERE trade_date = CAST('{{ ds }}' AS DATE)
+WHERE trade_date = CAST('{{ macros.ds_add(ds, -1) }}' AS DATE)
 
 -- Если такая акция за эту дату уже есть в ODS, мы обновляем её значения
 ON CONFLICT (ticker, trade_date) DO UPDATE SET

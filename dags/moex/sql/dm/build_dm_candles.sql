@@ -1,5 +1,5 @@
 -- 1. Идемпотентность: удаляем данные за сегодня, если они там уже есть
-DELETE FROM dm.dm_stock_analytics WHERE trade_date = CAST('{{ ds }}' AS DATE);
+DELETE FROM dm.dm_stock_analytics WHERE trade_date = CAST('{{ macros.ds_add(ds, -1) }}' AS DATE);
 
 -- 2. Собираем витрину
 INSERT INTO dm.dm_stock_analytics (
@@ -25,4 +25,4 @@ JOIN dds.dim_emitents d
   ON f.ticker = d.ticker
  AND f.trade_date >= CAST(d.valid_from AS DATE) 
  AND f.trade_date < CAST(d.valid_to AS DATE)
-WHERE f.trade_date = CAST('{{ ds }}' AS DATE);
+WHERE f.trade_date = CAST('{{ macros.ds_add(ds, -1) }}' AS DATE);
